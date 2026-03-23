@@ -1,0 +1,29 @@
+{
+    "compilerOptions": {
+      "target": "ESNext",
+      "module": "CommonJS",
+      "resolveJsonModule": true,
+      "moduleResolution": "node",
+      "outDir": "out",
+      "sourceMap": true,
+      "types": ["node"],
+      "typeRoots": ["./node_modules/@types"],
+      "baseUrl": ".",
+      "paths": {
+        "@page/*": ["page/*"],
+        "@fixtures/*": ["fixtures/*"],
+        "@utilities/*": ["utilities/*"],
+        "@data/*": ["data/*"],
+        "@interfaces/*":["interfaces/*"],
+        "@api/*": ["api/*"]
+      },
+      "strict": false,
+      "noImplicitAny": true,
+      "strictNullChecks": true,
+      "noUnusedLocals": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "moduleResolution": "node"
+    }
+  }
+  

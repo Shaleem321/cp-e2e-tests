@@ -1,0 +1,10 @@
+node_modules
+config/
+/allure-results
+/playwright-report
+/test-results
+/cookies
+playwright-report.json
+*.code-workspace
+debug.log
+TELEMETRY_AUDIT.md
