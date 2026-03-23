@@ -149,7 +149,7 @@ WP CLI teardown uses the captured group (the integer order ID).
 `afterEach` runs after every test (pass or fail), but if the Playwright process is killed or the SSH call itself throws, the order survives. Mitigations:
 
 1. **`wp.utils.ts`** wraps the SSH delete in a try/catch and retries once before throwing
-2. **`scripts/cleanup-test-orders.ts`** — a standalone script that queries WooCommerce for any order with the title matching `E2E Test Item` in the last 24 hours and deletes them. Run this manually after any CI incident, or add it as a nightly cron after the regression run.
+2. **`scripts/cleanup-test-orders.ts`** — a standalone script that deletes orphaned test orders via SSH + `wp eval`. Mechanism: SSH into the server, run `wp eval` with a PHP snippet that queries `wc_get_orders(['limit' => 50, 'date_created' => '>=' . (time() - 86400)])`, filters for orders containing "E2E Test Item" in line items, and calls `->delete(true)` on each. Uses the same `SSH_HOST`/`SSH_USER`/`SSH_KEY_PATH` env vars as `wp.utils.ts`. Run manually after any CI incident, or add as a nightly cron step after the regression workflow completes.
 3. **Naming convention** — the test product name `E2E Test Item — DO NOT FULFILL` makes orphaned orders easy to spot and delete manually from WP Admin if needed.
 
 ---
@@ -177,7 +177,7 @@ IMAP_PORT=993
 
 GitHub Actions runners have no `~/.ssh/config`. Two GitHub repository secrets required:
 
-- `SSH_PRIVATE_KEY` — the private key corresponding to the public key added to `~/.ssh/authorized_keys` on the Hostinger server
+- `SSH_PRIVATE_KEY` — the SSH private key used to authenticate; the **corresponding public key** must already be present in `~/.ssh/authorized_keys` on the Hostinger server (never add the private key to the server)
 - `SSH_KNOWN_HOSTS` — output of `ssh-keyscan <server-host>` for the server
 
 Workflow setup step:
@@ -185,6 +185,7 @@ Workflow setup step:
 - name: Configure SSH
   run: |
     mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
     echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
     chmod 600 ~/.ssh/id_rsa
     echo "${{ secrets.SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
@@ -282,7 +283,7 @@ The primary end-to-end test. Uses the $0.01 test product. Steps:
 **`specs/regression/coa_search.spec.ts`** `@regression`
 - COA page loads
 - Typing a product name into the search input filters the list in real time
-- **Bug sentinel test (tagged `@bug`):** Search for a product whose name contains `&` — assert the result displays `&` (ampersand), not `&amp;` (HTML entity). This test is expected to FAIL until the bug is fixed. Tag `@bug` and document that a pass means the bug is resolved.
+- **Bug sentinel test (tagged `@bug`):** Search for a product whose name contains `&` — assert the result displays `&` (ampersand), not `&amp;` (HTML entity). Use Playwright's `test.fail()` annotation so Playwright expects and accepts the failure; an unexpected pass signals the bug is resolved. Without `test.fail()`, CI will fail on this assertion permanently.
 - Clearing the search restores all products
 
 **`specs/regression/restock_status.spec.ts`** `@regression`
