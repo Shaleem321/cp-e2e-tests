@@ -7,6 +7,22 @@ interface CheckoutTestCase {
 }
 
 const checkoutTestData: { [key: string]: CheckoutTestCase } = {
+  'side-cart-view-cart': {
+    testCaseData: {
+      tags: '@regression @smoke @cart @side-cart',
+      testCase: 'side-cart-view-cart',
+      testDescription: 'Add product to cart, verify side cart panel opens and shows the item, click View Cart, verify cart page loads',
+      testSummary: 'Side cart panel opens on add-to-cart and View Cart navigates correctly',
+    },
+  },
+  'side-cart-checkout': {
+    testCaseData: {
+      tags: '@regression @smoke @cart @side-cart',
+      testCase: 'side-cart-checkout',
+      testDescription: 'Add product to cart, verify side cart panel opens and shows the item, click Checkout, verify checkout page loads',
+      testSummary: 'Side cart panel opens on add-to-cart and Checkout navigates correctly',
+    },
+  },
   'checkout-flow-basic': {
     testCaseData: {
       tags: '@regression @smoke @checkout @e2e',

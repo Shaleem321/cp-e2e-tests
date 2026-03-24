@@ -38,6 +38,28 @@ export class CheckoutPage {
         locator: this.page.locator('.woocommerce-message a.button, .added_to_cart'),
       },
 
+      // Side cart panel (slides open automatically after add-to-cart)
+      sideCartPanel: {
+        description: 'Side cart panel',
+        locator: this.page.locator('.rbb-mini-cart-canvas.open'),
+      },
+      sideCartCloseButton: {
+        description: 'Side cart close (X) button',
+        locator: this.page.locator('#cp-side-cart-close'),
+      },
+      sideCartItem: {
+        description: 'Side cart item',
+        locator: this.page.locator('.woocommerce-mini-cart__item').first(),
+      },
+      sideCartViewCartButton: {
+        description: 'Side cart View Cart button',
+        locator: this.page.locator('.woocommerce-mini-cart__buttons a.wc-forward:not(.checkout)'),
+      },
+      sideCartCheckoutButton: {
+        description: 'Side cart Checkout button',
+        locator: this.page.locator('.woocommerce-mini-cart__buttons .checkout'),
+      },
+
       // Cart page
       proceedToCheckoutButton: {
         description: 'Proceed to checkout button',
@@ -156,6 +178,42 @@ export class CheckoutPage {
     });
   }
 
+  // ──────────────────────────────────────────────
+  // Side cart panel
+  // ──────────────────────────────────────────────
+
+  public async waitForSideCartToOpen(): Promise<void> {
+    await test.step('Wait for side cart panel to open', async () => {
+      await this.actions.waitForSelector(this.locators.sideCartPanel);
+      await this.actions.waitForSelector(this.locators.sideCartItem);
+    });
+  }
+
+  public async closeSideCart(): Promise<void> {
+    await test.step('Close side cart panel via X button', async () => {
+      await this.actions.waitForSelector(this.locators.sideCartCloseButton);
+      await this.actions.click(this.locators.sideCartCloseButton);
+      // Wait for panel to close (open class removed)
+      await this.page.locator('.rbb-mini-cart-canvas.open').waitFor({ state: 'detached', timeout: 10000 });
+    });
+  }
+
+  public async clickViewCartFromSideCart(): Promise<void> {
+    await test.step('Click View Cart from side cart panel', async () => {
+      await this.actions.waitForSelector(this.locators.sideCartViewCartButton);
+      await this.actions.click(this.locators.sideCartViewCartButton);
+      await this.actions.waitForDomLoad();
+    });
+  }
+
+  public async clickCheckoutFromSideCart(): Promise<void> {
+    await test.step('Click Checkout from side cart panel', async () => {
+      await this.actions.waitForSelector(this.locators.sideCartCheckoutButton);
+      await this.actions.click(this.locators.sideCartCheckoutButton);
+      await this.actions.waitForDomLoad();
+    });
+  }
+
   public async goToCart(): Promise<void> {
     await test.step('Navigate to cart page', async () => {
       // Navigate directly — more reliable than clicking the transient add-to-cart notification.
@@ -234,6 +292,15 @@ export class CheckoutPage {
       // Standard WC thank-you page uses /order-received/. Match both.
       await this.page.waitForURL(/order-received|zelle-payment/, { timeout: 45000 });
       await this.actions.waitForDomLoad();
+    });
+  }
+
+  public async verifyCurrentUrlContains(fragment: string): Promise<void> {
+    await test.step(`Verify URL contains '${fragment}'`, async () => {
+      const url = this.page.url();
+      if (!url.includes(fragment)) {
+        throw new Error(`Expected URL to contain '${fragment}' but got: ${url}`);
+      }
     });
   }
 
