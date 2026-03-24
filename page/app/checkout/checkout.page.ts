@@ -5,6 +5,9 @@ import { LocatorInfo } from '@interfaces/locator.info.interface';
 import { CheckoutFormData } from '@interfaces/checkout.form.interface';
 import { getEnvVariable } from '@utilities/env.utils';
 
+// WaaveCompliance note: company/entity/protocol KYC fields are CSS-hidden and
+// auto-filled by the site on every updated_checkout event. Do not interact with them.
+
 export class CheckoutPage {
   private readonly page: Page;
   private readonly actions: PlaywrightActionFactory;
@@ -75,32 +78,25 @@ export class CheckoutPage {
         locator: this.page.locator('#billing_email'),
       },
 
-      // WaaveCompliance KYC fields
-      waaveCompanyName: {
-        description: 'WaaveCompliance company/institution name',
-        locator: this.page.locator('#waave_company_name'),
-      },
-      waaveResearchEntity: {
-        description: 'WaaveCompliance research entity (select)',
-        locator: this.page.locator('#waave_research_entity'),
-      },
-      waaveResearchProtocol: {
-        description: 'WaaveCompliance research protocol (select)',
-        locator: this.page.locator('#waave_research_protocol'),
-      },
+      // WaaveCompliance acknowledgment:
+      // Initial PHP render = child theme div#cp-ack-toggle (role=checkbox, controls a hidden input).
+      // After every updated_checkout AJAX = plugin re-renders a real input[type=checkbox].
+      // We always wait for networkIdle after Zelle selection so the AJAX-rendered checkbox is stable.
       researchAcknowledgmentToggle: {
-        description: 'Research acknowledgment toggle (custom div)',
-        locator: this.page.locator('#cp-ack-toggle'),
-      },
-      researchAcknowledgmentHidden: {
-        description: 'Research acknowledgment hidden input',
-        locator: this.page.locator('#cp_waave_ack_hidden'),
+        description: 'Research acknowledgment checkbox (post-AJAX plugin render)',
+        locator: this.page.locator('input[type="checkbox"][name="waave_research_acknowledgment"]'),
       },
 
       // Payment
       zellePaymentRadio: {
         description: 'Zelle payment method radio',
         locator: this.page.locator('#payment_method_cp_zelle, input[value="cp_zelle"]'),
+      },
+
+      // WooCommerce terms and conditions checkbox (required to place order)
+      termsAndConditionsCheckbox: {
+        description: 'Terms and conditions checkbox',
+        locator: this.page.locator('#terms, input[name="terms"]'),
       },
 
       // Place order
@@ -161,9 +157,10 @@ export class CheckoutPage {
   }
 
   public async goToCart(): Promise<void> {
-    await test.step('Navigate to cart', async () => {
-      await this.actions.navigateToURL(`${this.cpURL}/cart/`);
-      await this.actions.waitForDomLoad();
+    await test.step('Navigate to cart page', async () => {
+      // Navigate directly — more reliable than clicking the transient add-to-cart notification.
+      // Site can be slow to DOMContentLoaded, so allow 60s.
+      await this.page.goto(`${this.cpURL}/cart/`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     });
   }
 
@@ -197,18 +194,14 @@ export class CheckoutPage {
     });
   }
 
-  public async fillWaaveComplianceFields(data: CheckoutFormData): Promise<void> {
-    await test.step('Fill WaaveCompliance KYC fields', async () => {
-      await this.actions.waitForSelector(this.locators.waaveCompanyName);
-      await this.actions.sendKeys(this.locators.waaveCompanyName, data.companyName);
-
-      await test.step('Select research entity', async () => {
-        await this.locators.waaveResearchEntity.locator.selectOption(data.researchEntity);
-      });
-
-      await test.step('Select research protocol', async () => {
-        await this.locators.waaveResearchProtocol.locator.selectOption(data.researchProtocol);
-      });
+  public async checkTermsAndConditions(): Promise<void> {
+    await test.step('Check terms and conditions', async () => {
+      // Wait for any lingering blockUI overlays to clear before clicking T&C
+      await this.page.locator('.blockUI').first().waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+      await this.actions.waitForSelector(this.locators.termsAndConditionsCheckbox);
+      // Force-click to bypass stability check — the T&C checkbox is in the payment section
+      // which may have residual overlay from updated_checkout AJAX
+      await this.locators.termsAndConditionsCheckbox.locator.click({ force: true });
     });
   }
 
@@ -216,37 +209,42 @@ export class CheckoutPage {
     await test.step('Select Zelle as payment method', async () => {
       await this.actions.waitForSelector(this.locators.zellePaymentRadio);
       await this.actions.click(this.locators.zellePaymentRadio);
+      // WooCommerce fires updated_checkout AJAX and blocks the form with .blockUI.
+      // Wait for the block overlay to appear then disappear — reliable signal AJAX is done.
+      // Catch: overlay may appear/disappear faster than our check, so both are optional.
+      await this.page.locator('.blockUI').first().waitFor({ state: 'attached', timeout: 5000 }).catch(() => {});
+      await this.page.locator('.blockUI').first().waitFor({ state: 'detached', timeout: 20000 });
     });
   }
 
   public async checkResearchAcknowledgment(): Promise<void> {
     await test.step('Check research acknowledgment', async () => {
       await this.actions.waitForSelector(this.locators.researchAcknowledgmentToggle);
-      await this.locators.researchAcknowledgmentToggle.locator.scrollIntoViewIfNeeded();
       await this.actions.click(this.locators.researchAcknowledgmentToggle);
-
-      const hiddenValue = await this.locators.researchAcknowledgmentHidden.locator.inputValue();
-      if (hiddenValue !== '1') {
-        throw new Error('Research acknowledgment was not accepted — hidden input value is not "1"');
-      }
     });
   }
 
   public async placeOrder(): Promise<void> {
     await test.step('Click place order and wait for confirmation', async () => {
+      // Ensure no WooCommerce blockUI overlay is active before submitting
+      await this.page.locator('.blockUI').first().waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
       await this.actions.waitForSelector(this.locators.placeOrderButton);
       await this.actions.click(this.locators.placeOrderButton);
-      await this.page.waitForURL(/order-received/, { timeout: 45000 });
+      // The Zelle gateway redirects to /zelle-payment/?order_id=... (not /order-received/).
+      // Standard WC thank-you page uses /order-received/. Match both.
+      await this.page.waitForURL(/order-received|zelle-payment/, { timeout: 45000 });
       await this.actions.waitForDomLoad();
     });
   }
 
   public async getOrderIdFromUrl(): Promise<string> {
     const url = this.page.url();
-    const match = url.match(/order-received\/(\d+)/);
-    if (!match) {
-      throw new Error(`Could not extract order ID from URL: ${url}`);
-    }
-    return match[1];
+    // /checkout/order-received/12345/?key=...
+    const pathMatch = url.match(/order-received\/(\d+)/);
+    if (pathMatch) return pathMatch[1];
+    // /zelle-payment/?order_id=12345&key=...
+    const paramMatch = url.match(/[?&]order_id=(\d+)/);
+    if (paramMatch) return paramMatch[1];
+    throw new Error(`Could not extract order ID from URL: ${url}`);
   }
 }

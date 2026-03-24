@@ -47,16 +47,16 @@ test(
       await checkoutPage.fillBillingForm(formData);
     });
 
-    await test.step('Fill WaaveCompliance KYC fields', async () => {
-      await checkoutPage.fillWaaveComplianceFields(formData);
-    });
-
     await test.step('Select Zelle payment method', async () => {
       await checkoutPage.selectZellePayment();
     });
 
     await test.step('Accept research acknowledgment', async () => {
       await checkoutPage.checkResearchAcknowledgment();
+    });
+
+    await test.step('Accept terms and conditions', async () => {
+      await checkoutPage.checkTermsAndConditions();
     });
 
     await test.step('Place order and verify confirmation', async () => {

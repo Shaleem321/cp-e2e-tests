@@ -37,6 +37,8 @@ export function generateCheckoutFormData(): CheckoutFormData {
     // Timestamp in email makes each run unique and lets the cleanup script
     // identify test orders by email pattern if order ID teardown fails
     email: `test+${Date.now()}@coffeeandpeppers-test.com`,
+    // WaaveCompliance KYC fields auto-filled by the site JS — still typed here
+    // so the interface stays complete, but the test does not interact with them
     companyName: 'E2E Test Research Labs',
     researchEntity: 'lab_research',
     researchProtocol: 'exploratory',
