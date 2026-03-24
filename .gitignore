@@ -1,5 +1,6 @@
 node_modules
-config/
+config/.env.*
+!config/.env.example
 /allure-results
 /playwright-report
 /test-results
