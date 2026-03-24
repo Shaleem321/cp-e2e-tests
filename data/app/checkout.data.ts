@@ -34,6 +34,8 @@ export function generateCheckoutFormData(): CheckoutFormData {
     state: 'AZ',
     zip: '85001',
     phone: TestDataUtils.generateRandomMobile(),
+    // Timestamp in email makes each run unique and lets the cleanup script
+    // identify test orders by email pattern if order ID teardown fails
     email: `test+${Date.now()}@coffeeandpeppers-test.com`,
     companyName: 'E2E Test Research Labs',
     researchEntity: 'lab_research',
